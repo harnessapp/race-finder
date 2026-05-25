@@ -195,7 +195,6 @@ function assessRace(race, horse) {
       distanceKmValue = distanceKm(trainer.lat, trainer.lon, venue.lat, venue.lon);
 
       if (distanceKmValue <= horse.maxTravelKm) {
-        score += 15 * travelWeight;
         reasons.push(`${Math.round(distanceKmValue)}km away`);
       } else {
         const overBy = distanceKmValue - horse.maxTravelKm;
@@ -214,7 +213,6 @@ function assessRace(race, horse) {
     penalties.push(`Wrong gait: ${race.Gait}`);
     hardFail = true;
   } else if (horse.gait && race.Gait === horse.gait) {
-    score += 10;
     reasons.push("Correct gait");
   }
 
@@ -232,17 +230,7 @@ function assessRace(race, horse) {
       penalties.push(`Above NR cap ${maxNR}`);
       hardFail = true;
     } else if (minNR !== null || maxNR !== null) {
-      score += 18;
       reasons.push(`NR fit ${minNR ?? "open"}-${maxNR ?? "open"}`);
-
-      if (maxNR !== null) {
-        const gapToTop = maxNR - horse.nr;
-
-        if (gapToTop <= 1) {
-          score += 8;
-          reasons.push("Near top of NR band");
-        }
-      }
     }
   }
 
@@ -260,8 +248,12 @@ function assessRace(race, horse) {
       penalties.push(`Above wins cap ${maxWins}`);
       hardFail = true;
     } else if (minWins !== null || maxWins !== null) {
-      score += 14;
       reasons.push(`Wins fit ${minWins ?? "open"}-${maxWins ?? "open"}`);
+
+      if (maxWins !== null && maxWins <= 3 && horse.wins === maxWins) {
+        score += 8;
+        reasons.push("At top of low-wins race");
+      }
     }
 
     const avoidWeight = weightValue(horse.avoidSeasonedWinners);
@@ -291,8 +283,12 @@ function assessRace(race, horse) {
       penalties.push(`Too old for age condition`);
       hardFail = true;
     } else if (minAge !== null || maxAge !== null) {
-      score += 8;
       reasons.push(`Age fit ${minAge ?? "open"}-${maxAge ?? "open"}`);
+
+      if (minAge !== null && minAge >= 4) {
+        score += 4;
+        reasons.push("Older-age race");
+      }
     }
   }
 
@@ -331,10 +327,10 @@ function assessRace(race, horse) {
     const maxOk = maxPreferredDistance === null || raceDistance <= maxPreferredDistance;
 
     if (minOk && maxOk) {
-      score += 12 * distanceWeight;
+      score += 15 * distanceWeight;
       reasons.push("Preferred distance");
     } else {
-      score -= 12 * distanceWeight;
+      score -= 15 * distanceWeight;
       penalties.push("Outside preferred distance");
     }
   }
@@ -348,7 +344,7 @@ function assessRace(race, horse) {
       score += 10 * barrierWeight;
       reasons.push("Preferential barrier draw");
     } else if (drawText.includes("RBD")) {
-      score -= 5 * barrierWeight;
+      score -= 10 * barrierWeight;
       penalties.push("Random barrier draw");
     }
   }
@@ -358,16 +354,16 @@ function assessRace(race, horse) {
 
   if (prizemoney !== null && prizemoney > 0) {
     if (prizemoney >= 15000) {
-      score += 14 * prizemoneyWeight;
+      score += 17 * prizemoneyWeight;
       reasons.push("Excellent prizemoney");
     } else if (prizemoney >= 10000) {
-      score += 10 * prizemoneyWeight;
+      score += 12 * prizemoneyWeight;
       reasons.push("Strong prizemoney");
     } else if (prizemoney >= 6000) {
-      score += 4 * prizemoneyWeight;
+      score += 6 * prizemoneyWeight;
       reasons.push("Decent prizemoney");
-    } else if (prizemoney <= 4000) {
-      score -= 12 * prizemoneyWeight;
+    } else if (prizemoney < 5000) {
+      score -= 15 * prizemoneyWeight;
       penalties.push("Low prizemoney");
     }
   }
@@ -384,22 +380,7 @@ function assessRace(race, horse) {
   }
 
 
-  let scoreCap = 100;
-
-  if (horse.nr !== null) {
-    const maxNR = getRaceMaxNR(race);
-
-    if (maxNR !== null) {
-      const gapToTop = maxNR - horse.nr;
-
-      if (gapToTop > 0) {
-        scoreCap = Math.max(0, 100 - gapToTop);
-        penalties.push(`Score capped at ${scoreCap} due to race ceiling ${gapToTop} NR above horse`);
-      }
-    }
-  }
-
-score = Math.max(0, Math.min(scoreCap, Math.round(score)));
+  score = Math.max(0, Math.min(100, Math.round(score)));
 
   return {
     isEligible: !hardFail,
